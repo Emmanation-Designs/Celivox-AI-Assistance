@@ -1,69 +1,39 @@
-// api.js - Netlify serverless function
-// Place this in the same folder as index.html and home.html
+import fetch from 'node-fetch';
 
-const fetch = require('node-fetch'); // Netlify functions support node-fetch
+const geminiKey = process.env.GEMINI_KEY;       // Gemini key from Netlify env
+const openRouterKey = process.env.OPENROUTER_KEY; // OpenRouter key from Netlify env
 
-exports.handler = async function(event, context) {
+export async function handler(req, res) {
+  const { prompt } = req.body;
+
   try {
-    const body = JSON.parse(event.body);
-    const { message, provider } = body;
+    // Gemini API request
+    const geminiResponse = await fetch('https://api.gemini.com/v1/endpoint', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${geminiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prompt })
+    });
+    const geminiData = await geminiResponse.json();
 
-    if (!message || !provider) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing message or provider' })
-      };
-    }
+    // OpenRouter API request
+    const openRouterResponse = await fetch('https://openrouter.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prompt })
+    });
+    const openRouterData = await openRouterResponse.json();
 
-    let apiResponse;
+    // Return both responses
+    res.status(200).json({ gemini: geminiData, openRouter: openRouterData });
 
-    if (provider === 'gemini') {
-      apiResponse = await fetch('https://api.gemini.com/v1/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer YOUR_GEMINI_API_KEY'
-        },
-        body: JSON.stringify({ prompt: message })
-      });
-    } else if (provider === 'openrouter') {
-      apiResponse = await fetch('https://api.openrouter.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer YOUR_OPENROUTER_API_KEY'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: message }]
-        })
-      });
-    } else {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid provider' })
-      };
-    }
-
-    const data = await apiResponse.json();
-
-    // Adjust response depending on provider
-    let reply;
-    if (provider === 'gemini') {
-      reply = data.response || 'No response from Gemini';
-    } else if (provider === 'openrouter') {
-      reply = data.choices?.[0]?.message?.content || 'No response from OpenRouter';
-    }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ reply })
-    };
-
-  } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message })
-    };
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'API request failed' });
   }
-};
+      }
