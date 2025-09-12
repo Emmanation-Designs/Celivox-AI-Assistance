@@ -1,12 +1,12 @@
 import fetch from 'node-fetch';
 
-const geminiKey = process.env.GEMINI_KEY;
-const openRouterKey = process.env.OPENROUTER_KEY;
+const geminiKey = process.env.GEMINI_KEY;       // Gemini key from Netlify env
+const openRouterKey = process.env.OPENROUTER_KEY; // OpenRouter key from Netlify env
 
-export async function handler(req, res) {
-  const { prompt } = req.body;
-
+export async function handler(event, context) {
   try {
+    const { prompt } = JSON.parse(event.body);
+
     // Gemini API request
     const geminiResponse = await fetch('https://api.gemini.com/v1/endpoint', {
       method: 'POST',
@@ -30,14 +30,16 @@ export async function handler(req, res) {
     const openRouterData = await openRouterResponse.json();
 
     // Return both responses
-    res.status(200).json({ gemini: geminiData, openRouter: openRouterData });
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ gemini: geminiData, openRouter: openRouterData })
+    };
 
   } catch (error) {
-    // <-- Replace your existing catch block with this:
-    console.error("Full error:", error);          // Logs full error to Netlify function logs
-    res.status(500).json({ 
-      error: 'API request failed', 
-      details: error.message                     // Sends error message in response
-    });
+    console.error(error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'API request failed', details: error.message })
+    };
   }
       }
