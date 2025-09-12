@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Celivox - Text Chat</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  :root{
+    --bg-light-start:#f0f7ff; --bg-light-end:#dbeafe;
+    --bg-dark-start:#071123; --bg-dark-end:#071a2b;
+    --accent:#2563eb;
+  }
+  html,body{height:100%;margin:0;font-family:Arial, sans-serif;}
+  body{
+    display:flex;flex-direction:column;
+    background:linear-gradient(135deg,var(--bg-light-start),var(--bg-light-end));
+    color:#07203a;transition:background .4s ease,color .3s ease;
+  }
+  body.dark{background:linear-gradient(135deg,var(--bg-dark-start),var(--bg-dark-end)); color:#dbeafe;}
+
+  /* Auth Section */
+  #authSection{flex:1;display:flex;align-items:center;justify-content:center;}
+  #authBox{background:white;padding:30px;border-radius:12px;width:350px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.1);}
+  #authBox input{width:90%;padding:12px;margin:10px 0;border:1px solid #ccc;border-radius:8px;font-size:14px;}
+  #authBox button{background:#2563eb;color:#fff;border:none;padding:12px 20px;margin:10px 5px;border-radius:8px;cursor:pointer;font-weight:bold;}
+  #authBox button:hover{background:#1e3a8a;}
+  #authMessage{margin-top:10px;font-weight:bold;font-size:14px;color:red;}
+
+  /* Assistant Page */
+  #assistantPage{flex:1;display:none;flex-direction:column;height:100%;}
+  .ai-title{font-size:2rem;font-weight:900;text-align:center;
+    background:linear-gradient(90deg,#2563eb,#9333ea);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    margin:20px 0;
+  }
+  .chat-container{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px;position:relative;}
+  .bubble{max-width:70%;padding:12px 16px;border-radius:18px;font-size:15px;line-height:1.4;word-wrap:break-word;position:relative;cursor:pointer;}
+  .user-bubble{align-self:flex-end;background:#2563eb;color:white;border-bottom-right-radius:4px;}
+  .ai-bubble{align-self:flex-start;background:#e5e7eb;color:#111;border-bottom-left-radius:4px;}
+  body.dark .ai-bubble{background:#0b1320;color:#cfe6ff;}
+  body.dark .user-bubble{background:#1e40af;}
+  .ai-bubble img{max-width:250px;border-radius:12px;margin-top:6px;}
+
+  .input-area{display:flex;padding:12px;background:white;border-top:1px solid #ddd;}
+  .input-area input{flex:1;padding:10px 14px;border-radius:20px;border:1px solid #bbb;font-size:15px;}
+  .input-area button{margin-left:10px;padding:10px 18px;border-radius:20px;border:none;background:#2563eb;color:#fff;cursor:pointer;font-weight:bold;}
+
+  /* Sidebar */
+  #menuToggle{position:fixed;top:15px;left:15px;z-index:1001;cursor:pointer;}
+  #menuToggle div{width:30px;height:4px;background-color:var(--accent);margin:6px 0;}
+  #sidebarMenu{height:100%;width:0;position:fixed;top:0;left:0;background:linear-gradient(180deg,var(--bg-light-start),var(--bg-light-end));overflow-x:hidden;transition:width 0.3s;padding-top:60px;z-index:1000;}
+  body.dark #sidebarMenu{background:linear-gradient(180deg,var(--bg-dark-start),var(--bg-dark-end));}
+  #sidebarMenu a, #sidebarMenu button, #sidebarMenu input{padding:12px 30px;text-decoration:none;font-size:16px;color:var(--accent);display:flex;align-items:center;gap:12px;font-weight:600;border:none;background:none;width:100%;text-align:left;}
+  #sidebarMenu a:hover, #sidebarMenu button:hover{background-color:rgba(37,99,235,0.15);color:#fff;}
+  #sidebarClose{position:absolute;top:15px;right:20px;font-size:30px;cursor:pointer;color:var(--accent);}
+  #searchBox{width:80%;margin:10px auto;padding:10px;border-radius:8px;border:1px solid #bbb;font-size:14px;}
+
+  /* Bubble actions menu */
+  .bubble-menu{
+    position:absolute;
+    top:-35px;
+    right:0;
+    display:flex;
+    gap:8px;
+    background:rgba(0,0,0,0.7);
+    padding:5px 8px;
+    border-radius:6px;
+    color:white;
+    font-size:14px;
+    z-index:10;
+  }
+  .bubble-menu i{cursor:pointer;}
+</style>
+</head>
+<body>
+
+<!-- Auth Section -->
+<div id="authSection">
+  <div id="authBox">
+    <h2>Register / Login</h2>
+    <input type="text" id="regUsername" placeholder="Enter Username">
+    <input type="password" id="regPassword" placeholder="Enter Password">
+    <div>
+      <button onclick="register()">Register</button>
+      <button onclick="login()">Login</button>
+    </div>
+    <p id="authMessage"></p>
+  </div>
+</div>
+
+<!-- Assistant Page -->
+<div id="assistantPage">
+  <div id="menuToggle" onclick="openMenu()"><div></div><div></div><div></div></div>
+  <div id="sidebarMenu">
+    <span id="sidebarClose" onclick="closeMenu()">&times;</span>
+    <input type="text" id="searchBox" placeholder="Search past chats..." oninput="searchMemory(this.value)">
+    <a href="https://wa.me/2348081682884" target="_blank"><i class="fa-brands fa-square-whatsapp"></i> WhatsApp Support</a>
+    <a href="#" onclick="logout()"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+    <button onclick="clearMemory()"><i class="fa-solid fa-trash"></i> Clear Memory</button>
+    <button onclick="toggleTheme()"><i class="fa-solid fa-circle-half-stroke"></i> Toggle Theme</button>
+    <a href="home.html"><i class="fa-solid fa-microphone"></i> Switch to Voice Mode</a>
+  </div>
+
+  <div class="ai-title">CELIVOX</div>
+  <div class="chat-container" id="chatContainer"></div>
+  <div class="input-area">
+    <input type="text" id="userInput" placeholder="Type your message...">
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+  const GEMINI_API_KEY = "AIzaSyDlU22AqZ4mCxirbpxAgvxZYDnkNJy3504";
+  const OPENROUTER_API_KEY = "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";
+
+  const authSection=document.getElementById('authSection');
+  const assistantPage=document.getElementById('assistantPage');
+  const chatContainer=document.getElementById('chatContainer');
+  const userInput=document.getElementById('userInput');
+  const msg=document.getElementById('authMessage');
+
+  const birthDate = new Date("2008-03-18");
+  function getAge() {
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
+  }
+  function get18thBirthday() {
+    const eighteenth = new Date(birthDate);
+    eighteenth.setFullYear(eighteenth.getFullYear() + 18);
+    return eighteenth.toDateString();
+  }
+
+  const BASE_IDENTITY = `Celivox is an AI assistant developed by Emmanuel Nwaije Ikemefuna (Emmanation Designs), a ${getAge()}-year-old software developer from Nigeria. Emmanuel created Celivox to assist users with web, AI, and coding queries. Celivox was brought to existence on 10th September 2025.\n`;
+
+  function showAssistantPage(){
+    authSection.style.display='none';
+    assistantPage.style.display='flex';
+    restoreConversation();
+  }
+
+  // -------- Auth --------
+  function register(){
+    const u=document.getElementById("regUsername").value;
+    const p=document.getElementById("regPassword").value;
+    if(u && p){
+      localStorage.setItem("username",u);
+      localStorage.setItem("password",p);
+      localStorage.setItem("loggedIn","true");
+      showAssistantPage();
+    } else msg.innerText="❌ Enter username and password!";
+  }
+  function login(){
+    const u=document.getElementById("regUsername").value;
+    const p=document.getElementById("regPassword").value;
+    if(u===localStorage.getItem("username") && p===localStorage.getItem("password")){
+      localStorage.setItem("loggedIn","true");
+      showAssistantPage();
+    } else msg.innerText="❌ Invalid credentials!";
+  }
+  function logout(){
+    localStorage.setItem("loggedIn","false");
+    authSection.style.display='flex';
+    assistantPage.style.display='none';
+  }
+  window.onload=function(){
+    if(localStorage.getItem("loggedIn")==="true") showAssistantPage();
+    if(localStorage.getItem("theme")==="dark") document.body.classList.add("dark");
+  }
+
+  // -------- Sidebar --------
+  function openMenu(){document.getElementById("sidebarMenu").style.width="260px";}
+  function closeMenu(){document.getElementById("sidebarMenu").style.width="0";}
+  function toggleTheme(){
+    document.body.classList.toggle("dark");
+    localStorage.setItem("theme",document.body.classList.contains("dark")?"dark":"light");
+  }
+
+  // -------- Chat Bubbles with Actions --------
+  function appendBubble(content,isUser,isImage=false){
+    const div=document.createElement("div");
+    div.className="bubble "+(isUser?"user-bubble":"ai-bubble");
+    div.dataset.user=isUser?"true":"false";
+
+    if(isImage){
+      const img=document.createElement("img");
+      img.src=content;
+      div.appendChild(img);
+    } else div.innerText=content;
+
+    // Add bubble click for action menu
+    div.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      showBubbleMenu(div);
+    });
+
+    chatContainer.appendChild(div);
+    chatContainer.scrollTop=chatContainer.scrollHeight;
+  }
+
+  function showBubbleMenu(bubble){
+    // Remove existing menus
+    document.querySelectorAll(".bubble-menu").forEach(m=>m.remove());
+
+    const menu=document.createElement("div");
+    menu.className="bubble-menu";
+
+    // Copy icon
+    const copyBtn=document.createElement("i");
+    copyBtn.className="fa-regular fa-copy";
+    copyBtn.title="Copy";
+    copyBtn.onclick=(e)=>{
+      e.stopPropagation();
+      navigator.clipboard.writeText(bubble.innerText);
+      alert("✅ Copied!");
+      menu.remove();
+    };
+    menu.appendChild(copyBtn);
+
+    // Delete icon
+    const delBtn=document.createElement("i");
+    delBtn.className="fa-solid fa-trash";
+    delBtn.title="Delete";
+    delBtn.onclick=(e)=>{
+      e.stopPropagation();
+      const q=bubble.dataset.user==="true"?bubble.innerText:null;
+      bubble.remove();
+      menu.remove();
+      // Also remove from memory
+      if(q!==null){
+        let history=JSON.parse(localStorage.getItem("celivox_memory"))||[];
+        history=history.filter(h=>h.q!==q);
+        localStorage.setItem("celivox_memory",JSON.stringify(history));
+      }
+    };
+    menu.appendChild(delBtn);
+
+    // Edit icon for user bubbles
+    if(bubble.dataset.user==="true"){
+      const editBtn=document.createElement("i");
+      editBtn.className="fa-solid fa-pen";
+      editBtn.title="Edit";
+      editBtn.onclick=(e)=>{
+        e.stopPropagation();
+        userInput.value=bubble.innerText;
+        bubble.remove();
+        menu.remove();
+        // Remove from memory
+        let history=JSON.parse(localStorage.getItem("celivox_memory"))||[];
+        history=history.filter(h=>h.q!==bubble.innerText);
+        localStorage.setItem("celivox_memory",JSON.stringify(history));
+      };
+      menu.appendChild(editBtn);
+    }
+
+    bubble.appendChild(menu);
+  }
+
+  // Remove menu if clicked outside
+  document.body.addEventListener("click", ()=>{
+    document.querySelectorAll(".bubble-menu").forEach(m=>m.remove());
+  });
+
+  // -------- Memory --------
+  function saveConversation(q,a,isImage=false){
+    let history=JSON.parse(localStorage.getItem("celivox_memory"))||[];
+    history.push({q,a,isImage,time:new Date().toISOString()});
+    const cutoff=new Date(); cutoff.setFullYear(cutoff.getFullYear()-1);
+    history=history.filter(h=>new Date(h.time)>=cutoff);
+    localStorage.setItem("celivox_memory",JSON.stringify(history));
+  }
+  function restoreConversation(){
+    const history=JSON.parse(localStorage.getItem("celivox_memory"))||[];
+    chatContainer.innerHTML="";
+    history.forEach(h=>{
+      appendBubble(h.q,true);
+      appendBubble(h.a,false,h.isImage);
+    });
+  }
+  function clearMemory(){
+    localStorage.removeItem("celivox_memory");
+    alert("✅ Memory cleared!");
+    chatContainer.innerHTML="";
+  }
+  function searchMemory(query){
+    const history=JSON.parse(localStorage.getItem("celivox_memory"))||[];
+    chatContainer.innerHTML="";
+    history.filter(h=>
+      h.q.toLowerCase().includes(query.toLowerCase())||
+      h.a.toLowerCase().includes(query.toLowerCase()))
+    .forEach(h=>{
+      appendBubble(h.q,true);
+      appendBubble(h.a,false,h.isImage);
+    });
+  }
+
+  // -------- Context & AI Calls --------
+  function buildContext(userInput){
+    const history=JSON.parse(localStorage.getItem("celivox_memory"))||[];
+    const recent=history.slice(-10).map(h=>`User: ${h.q}\nCelivox: ${h.a}`).join("\n");
+    return `${BASE_IDENTITY}\nConversation so far:\n${recent}\nUser: ${userInput}\nCelivox:`;
+  }
+  async function callGemini(prompt){try{const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key="+GEMINI_API_KEY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});if(!r.ok)throw new Error("Gemini fail");const d=await r.json();return d?.candidates?.[0]?.content?.parts?.[0]?.text ?? null}catch{return null;}}
+  async function callOpenRouter(prompt){try{const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Authorization":`Bearer ${OPENROUTER_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"openai/gpt-3.5-turbo",messages:[{role:"user",content:prompt}]})});if(!r.ok)throw new Error("OpenRouter fail");const d=await r.json();return d?.choices?.[0]?.message?.content ?? null}catch{return null;}}
+  async function getAIReply(text) {
+  const lower = text.toLowerCase();
+
+  // Custom responses
+  if (lower.includes("generate image") || lower.includes("draw")) {
+    return { type: "text", text: "🖼️ Image generation will be available in Celivox Premium soon!" };
+  }
+  if (lower.includes("turn 18") || lower.includes("when will your developer turn 18")) {
+    return { type: "text", text: `Emmanuel Nwaije Ikemefuna will turn 18 on ${get18thBirthday()}.` };
+  }
+
+  // Choose provider (Gemini for text mode)
+  const provider = "gemini";
+
+  try {
+    const response = await fetch("/.netlify/functions/api", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, provider })
+    });
+    const data = await response.json();
+    return { type: "text", text: data.reply || "❌ I couldn’t get a response now." };
+  } catch (err) {
+    return { type: "text", text: "❌ Backend error: " + err.message };
+  }
+}
+
+  async function sendMessage(){
+    const text=userInput.value.trim();
+    if(!text) return;
+    appendBubble(text,true);
+    userInput.value="";
+    appendBubble("🤖 Thinking...",false);
+
+    const reply=await getAIReply(text);
+    chatContainer.removeChild(chatContainer.lastChild);
+
+    appendBubble(reply.text,false);
+    saveConversation(text,reply.text);
+  }
+</script>
+</body>
+</html>
