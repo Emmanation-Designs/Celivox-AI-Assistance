@@ -1,0 +1,15 @@
+{
+  "name": "celivox-ai",
+  "version": "1.0.0",
+  "description": "Celivox AI Assistant",
+  "main": "api.js",
+  "scripts": {
+    "start": "node api.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.4.0"
+  },
+  "type": "module",
+  "author": "",
+  "license": "ISC"
+}
