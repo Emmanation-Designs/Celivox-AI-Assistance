@@ -1,10 +1,27 @@
-import fetch from 'node-fetch';
+// api.js
+const fetch = require('node-fetch');
 
 const geminiKey = process.env.GEMINI_KEY;       // Gemini key from Netlify env
 const openRouterKey = process.env.OPENROUTER_KEY; // OpenRouter key from Netlify env
 
-export async function handler(req, res) {
-  const { prompt } = req.body;
+exports.handler = async function(event, context) {
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ error: 'Method not allowed' }),
+    };
+  }
+
+  let prompt;
+  try {
+    const body = JSON.parse(event.body);
+    prompt = body.prompt;
+  } catch (err) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+    };
+  }
 
   try {
     // Gemini API request
@@ -12,9 +29,9 @@ export async function handler(req, res) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${geminiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt }),
     });
     const geminiData = await geminiResponse.json();
 
@@ -23,17 +40,22 @@ export async function handler(req, res) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt }),
     });
     const openRouterData = await openRouterResponse.json();
 
     // Return both responses
-    res.status(200).json({ gemini: geminiData, openRouter: openRouterData });
-
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ gemini: geminiData, openRouter: openRouterData }),
+    };
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'API request failed' });
+    console.error('API request error:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'API request failed' }),
+    };
   }
-      }
+};
