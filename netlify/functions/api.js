@@ -1,27 +1,10 @@
-// api.js
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
-const geminiKey = process.env.GEMINI_KEY;       // Gemini key from Netlify env
-const openRouterKey = process.env.OPENROUTER_KEY; // OpenRouter key from Netlify env
+const geminiKey = process.env.GEMINI_KEY;
+const openRouterKey = process.env.OPENROUTER_KEY;
 
-exports.handler = async function(event, context) {
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
-  }
-
-  let prompt;
-  try {
-    const body = JSON.parse(event.body);
-    prompt = body.prompt;
-  } catch (err) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Invalid JSON in request body' }),
-    };
-  }
+export async function handler(req, res) {
+  const { prompt } = req.body;
 
   try {
     // Gemini API request
@@ -29,9 +12,9 @@ exports.handler = async function(event, context) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${geminiKey}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt })
     });
     const geminiData = await geminiResponse.json();
 
@@ -40,22 +23,21 @@ exports.handler = async function(event, context) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt })
     });
     const openRouterData = await openRouterResponse.json();
 
     // Return both responses
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ gemini: geminiData, openRouter: openRouterData }),
-    };
+    res.status(200).json({ gemini: geminiData, openRouter: openRouterData });
+
   } catch (error) {
-    console.error('API request error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'API request failed' }),
-    };
+    // <-- Replace your existing catch block with this:
+    console.error("Full error:", error);          // Logs full error to Netlify function logs
+    res.status(500).json({ 
+      error: 'API request failed', 
+      details: error.message                     // Sends error message in response
+    });
   }
-};
+      }
