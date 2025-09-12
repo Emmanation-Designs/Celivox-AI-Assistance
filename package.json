@@ -6,9 +6,8 @@
   "scripts": {
     "start": "node api.js"
   },
-"dependencies": {
-  "node-fetch": "^3.3.2"
-}
+  "dependencies": {
+    "node-fetch": "^3.3.2"
   },
   "type": "module",
   "author": "",
