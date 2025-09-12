@@ -6,11 +6,10 @@
   "scripts": {
     "start": "node api.js"
   },
-"dependencies": {
-  "node-fetch": "^2.6.7"
-}
+  "dependencies": {
+    "node-fetch": "^2.6.7"
   },
-  "type": "module",
+  "type": "commonjs",
   "author": "",
   "license": "ISC"
 }
