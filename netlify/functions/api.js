@@ -5,20 +5,14 @@ const openRouterKey = process.env.OPENROUTER_KEY;
 
 export async function handler(event) {
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed" }),
-    };
+    return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
   }
 
   let body;
   try {
     body = JSON.parse(event.body);
   } catch (err) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: "Invalid JSON" }),
-    };
+    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
   const { message, provider } = body;
@@ -32,13 +26,11 @@ export async function handler(event) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: message }] }],
-          }),
+          body: JSON.stringify({ contents: [{ parts: [{ text: message }] }] }),
         }
       );
-
       const data = await res.json();
+      console.log("Gemini response:", JSON.stringify(data, null, 2)); // 🔎 log full response
       reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
     }
 
@@ -54,8 +46,8 @@ export async function handler(event) {
           messages: [{ role: "user", content: message }],
         }),
       });
-
       const data = await res.json();
+      console.log("OpenRouter response:", JSON.stringify(data, null, 2)); // 🔎 log full response
       reply = data?.choices?.[0]?.message?.content || null;
     }
 
@@ -64,9 +56,7 @@ export async function handler(event) {
       body: JSON.stringify({ reply: reply || "❌ No response" }),
     };
   } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    console.error("API request failed:", error);
+    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
-      }
+        }
