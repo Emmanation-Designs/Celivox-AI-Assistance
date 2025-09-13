@@ -649,15 +649,25 @@ async function getAIReply(prompt) {
     if (!response.ok) throw new Error('AI API Request Failed');
     const data = await response.json();
 
-    // Use Gemini first, then OpenRouter fallback
+    // Extract reply safely
     let reply = "";
-    if (data.gemini?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      reply = data.gemini.candidates[0].content.parts[0].text;
-    } else if (data.openRouter?.choices?.[0]?.message?.content) {
-      reply = data.openRouter.choices[0].message.content;
-    } else {
-      reply = "Sorry, I couldn’t respond at the moment.";
+
+    // Check Gemini response first
+    if (data.gemini && Array.isArray(data.gemini.candidates) && data.gemini.candidates.length) {
+      const parts = data.gemini.candidates[0]?.content?.parts;
+      if (Array.isArray(parts) && parts.length && parts[0]?.text) {
+        reply = parts[0].text;
+      }
     }
+
+    // Fallback to OpenRouter
+    if (!reply && data.openRouter && Array.isArray(data.openRouter.choices) && data.openRouter.choices.length) {
+      const msgContent = data.openRouter.choices[0]?.message?.content;
+      if (msgContent) reply = msgContent;
+    }
+
+    // Final fallback if nothing found
+    if (!reply) reply = "Sorry, I couldn’t respond at the moment.";
 
     return { text: reply };
 
