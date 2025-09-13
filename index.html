@@ -316,15 +316,17 @@
     return { type: "text", text: `Emmanuel Nwaije Ikemefuna will turn 18 on ${get18thBirthday()}.` };
   }
 
-  // Choose provider (Gemini for text mode)
-  const provider = "gemini";
-
+  const provider = "gemini"; // or "openRouter" if you want fallback
   try {
-    const response = await fetch("/.netlify/functions/api", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, provider })
-    });
+    const contextPrompt = buildContext(text); // <-- build context from last 10 messages
+const response = await fetch("/.netlify/functions/api", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ message: contextPrompt, provider })
+});
+
+    if (!response.ok) throw new Error("Network response not ok");
+
     const data = await response.json();
     return { type: "text", text: data.reply || "❌ I couldn’t get a response now." };
   } catch (err) {
