@@ -96,6 +96,7 @@
     <span id="sidebarClose" onclick="closeMenu()">&times;</span>
     <input type="text" id="searchBox" placeholder="Search past chats..." oninput="searchMemory(this.value)">
     <a href="https://wa.me/2348081682884" target="_blank"><i class="fa-brands fa-square-whatsapp"></i> WhatsApp Support</a>
+    <button id="aboutMenu">ℹ️ About</button>
     <a href="#" onclick="logout()"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
     <button onclick="clearMemory()"><i class="fa-solid fa-trash"></i> Clear Memory</button>
     <button onclick="toggleTheme()"><i class="fa-solid fa-circle-half-stroke"></i> Toggle Theme</button>
@@ -108,6 +109,109 @@
     <button onclick="sendMessage()">Send</button>
   </div>
 </div>
+<!-- About Page Container -->
+<div id="aboutPage" class="about-page hidden">
+  <div class="about-header">
+    <button id="aboutBack">&larr; Back</button>
+    <h1>About Celivox</h1>
+  </div>
+
+  <div class="about-body">
+    <img src="ai.png" alt="Celivox Logo" class="about-logo">
+    <h2>Celivox AI Assistant</h2>
+    <p>Celivox is a web-based AI assistant combining <br> text and voice interaction, designed for <br> seamless productivity and communication.</p>
+
+    <h3>Developer</h3>
+    <p>Emmanuel Nwaije <br> (Emmanation Designs)</p>
+
+    <h3>Version</h3>
+    <p>1.0</p>
+
+    <h3>Features</h3>
+    <ul>
+      <li>Text interaction</li>
+      <li>Privacy Assured</li>
+      <li>Real life answers</li>
+      <li>voice interaction, image generation will soon be available</li>
+    </ul>
+  </div>
+</div>
+
+<style>
+  .hidden { display: none; }
+
+  .about-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #f4ecd8; /* sand color */
+    color: #333;
+    z-index: 999;
+    overflow-y: auto;
+    font-family: sans-serif;
+    padding: 20px;
+  }
+
+  .about-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  #aboutBack {
+    padding: 6px 12px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: none;
+    background-color: #d4b483; /* darker sand button */
+    color: #fff;
+  }
+
+  .about-body {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .about-logo {
+    width: 100px;
+    margin-bottom: 12px;
+  }
+
+  h2 {
+    margin: 10px 0;
+  }
+
+  ul {
+    text-align: left;
+    margin: 10px auto;
+    padding-left: 20px;
+  }
+
+  li {
+    margin-bottom: 6px;
+  }
+</style>
+
+<script>
+  const aboutPage = document.getElementById('aboutPage');
+  const aboutMenuBtn = document.getElementById('aboutMenu'); // your sidebar menu
+  const aboutBackBtn = document.getElementById('aboutBack');
+
+  // Open About page
+  aboutMenuBtn.addEventListener('click', () => {
+    aboutPage.classList.remove('hidden');
+  });
+
+  // Back to main page
+  aboutBackBtn.addEventListener('click', () => {
+    aboutPage.classList.add('hidden');
+  });
+</script>
 
 <script>
   const GEMINI_API_KEY = "AIzaSyDlU22AqZ4mCxirbpxAgvxZYDnkNJy3504";
@@ -304,25 +408,35 @@
   }
   async function callGemini(prompt){try{const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key="+GEMINI_API_KEY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});if(!r.ok)throw new Error("Gemini fail");const d=await r.json();return d?.candidates?.[0]?.content?.parts?.[0]?.text ?? null}catch{return null;}}
   async function callOpenRouter(prompt){try{const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Authorization":`Bearer ${OPENROUTER_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"openai/gpt-3.5-turbo",messages:[{role:"user",content:prompt}]})});if(!r.ok)throw new Error("OpenRouter fail");const d=await r.json();return d?.choices?.[0]?.message?.content ?? null}catch{return null;}}
+  
+  //get AI REPLY
   async function getAIReply(text) {
   const lower = text.toLowerCase();
 
   // Custom responses
-  if (lower.includes("generate image") || lower.includes("draw")) {
-    return { type: "text", text: "🖼️ Image generation will be available in Celivox Premium soon!" };
-  }
+  // Expanded triggers for image generation
+const imageTriggers = [
+  "generate image","draw","create image","make image","draw a",
+  "generate a picture","draw me","show me a picture","paint",
+  "illustrate","pic","img","image please"
+];
+
+if (imageTriggers.some(trigger => lower.includes(trigger))) {
+  return { type: "text", text: "🖼️ Image generation will be available in Celivox Premium soon!" };
+}
   if (lower.includes("turn 18") || lower.includes("when will your developer turn 18")) {
     return { type: "text", text: `Emmanuel Nwaije Ikemefuna will turn 18 on ${get18thBirthday()}.` };
   }
 
-  const provider = "gemini"; // or "openRouter" if you want fallback
+  // Only proceed to API if not handled by custom responses
+  const provider = "gemini"; 
   try {
-    const contextPrompt = buildContext(text); // <-- build context from last 10 messages
-const response = await fetch("/.netlify/functions/api", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ message: contextPrompt, provider })
-});
+    const contextPrompt = buildContext(text); 
+    const response = await fetch("/.netlify/functions/api", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: contextPrompt, provider })
+    });
 
     if (!response.ok) throw new Error("Network response not ok");
 
@@ -334,18 +448,25 @@ const response = await fetch("/.netlify/functions/api", {
 }
 
   async function sendMessage(){
-    const text=userInput.value.trim();
-    if(!text) return;
-    appendBubble(text,true);
-    userInput.value="";
-    appendBubble("🤖 Thinking...",false);
+  const text = userInput.value.trim();
+  if(!text) return;
 
-    const reply=await getAIReply(text);
-    chatContainer.removeChild(chatContainer.lastChild);
+  appendBubble(text,true);
+  userInput.value = "";
+  userInput.disabled = true; // disable input while AI responds
+  appendBubble("🤖 Thinking...",false);
 
-    appendBubble(reply.text,false);
-    saveConversation(text,reply.text);
-  }
+  const reply = await getAIReply(text);
+
+  // Remove "Thinking..." bubble
+  chatContainer.removeChild(chatContainer.lastChild);
+
+  appendBubble(reply.text,false);
+  saveConversation(text,reply.text);
+
+  userInput.disabled = false; // re-enable input
+  userInput.focus();          // focus input
+}
 </script>
 </body>
   </html>
