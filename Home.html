@@ -639,26 +639,27 @@ async function handleCustomResponses(transcript){
 /* ---------- API calls ---------- */
 async function getAIReply(prompt) {
   try {
+    // Call backend API
     const response = await fetch('/.netlify/functions/api', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: prompt }),
+      body: JSON.stringify({ message: prompt })
+    });
 
     if (!response.ok) throw new Error('AI API Request Failed');
     const data = await response.json();
 
-    // ✅ Check Gemini first, then OpenRouter fallback
-    // ✅ Check Gemini first, then OpenRouter fallback
-let reply = "";
-if (data.gemini && data.gemini.candidates && data.gemini.candidates[0]?.content?.parts) {
-  reply = data.gemini.candidates[0].content.parts[0].text;
-} else if (data.openRouter?.choices?.[0]?.message?.content) {
-  reply = data.openRouter.choices[0].message.content;
-} else {
-  reply = "Sorry, I couldn’t respond at the moment.";
-}
+    // Use Gemini first, then OpenRouter fallback
+    let reply = "";
+    if (data.gemini?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      reply = data.gemini.candidates[0].content.parts[0].text;
+    } else if (data.openRouter?.choices?.[0]?.message?.content) {
+      reply = data.openRouter.choices[0].message.content;
+    } else {
+      reply = "Sorry, I couldn’t respond at the moment.";
+    }
 
-return { text: reply };
+    return { text: reply };
 
   } catch (err) {
     console.error("AI request failed:", err);
@@ -729,4 +730,4 @@ talkBtn.addEventListener('click', startTalking);
 speechSynthesis.onvoiceschanged = () => { loadVoicesWhenReady(); };
 </script>
 </body>
-    </html>
+</html>
