@@ -642,8 +642,7 @@ async function getAIReply(prompt) {
     const response = await fetch('/.netlify/functions/api', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    });
+      body: JSON.stringify({ message: prompt }),
 
     if (!response.ok) throw new Error('AI API Request Failed');
     const data = await response.json();
