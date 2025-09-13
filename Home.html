@@ -244,10 +244,6 @@ const devProfile = {
   origin: "His is From Ebe on Udi Local Government Area Of Nigeria, Africa",
   bio: "I am a software developer passionate about AI and web technologies."
 };
-/* ---------- YOUR KEYS ---------- */
-const GEMINI_API_KEY = "AIzaSyDlU22AqZ4mCxirbpxAgvxZYDnkNJy3504";
-const OPENROUTER_API_KEY = "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";
-
 /* ---------- Elements ---------- */
 const authSection = document.getElementById('authSection');
 const assistantPanel = document.getElementById('assistantPanel');
@@ -283,7 +279,8 @@ function showAssistantPage(){
   g.className = 'greeting';
   g.style.marginTop = '26px';
   g.innerHTML = `Hey <strong id="usernameDisplay">${name}</strong>, how may I help you?`;
-  assistantPanel.querySelector('.card').insertBefore(g, assistantPanel.querySelector('.robot').parentElement);
+  assistantPanel.querySelector('.card')
+  .insertBefore(g, assistantPanel.querySelector('.robot'));
 
   loadMemoryIntoChat();
 }
@@ -358,7 +355,7 @@ themeToggle.addEventListener('click', ()=>{
 
 /* switch to text mode (redirect) */
 function switchToTextMode() {
-  window.location.href = 'index.html';
+  window.location.href = './index.html';
 }
 
 /* ---------- Persistent memory ---------- */
@@ -377,35 +374,6 @@ function confirmClearMemory(){
     clearMemory();
   }
 }
-
-async function clearMemory(){
-  const username = localStorage.getItem('username') || 'Guest';
-  try{
-    const res = await fetch('http://localhost:3000/clearMemory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username })
-    });
-    if(!res.ok) throw new Error('Failed to clear memory');
-    localStorage.removeItem('celivox_memory'); // optional local cleanup
-    chatBox.innerHTML = '';
-    alert("✅ Memory cleared!");
-  }catch(e){
-    console.error(e);
-    alert("❌ Could not clear memory on server");
-  }
-}
-
-function loadMemoryIntoChat(){
-  const history = getConversation();
-  chatBox.innerHTML = '';
-  for(const item of history){
-    appendBubble('user', item.q, item.time);
-    appendBubble('ai', item.a, item.time);
-  }
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
 /* ---------- Chat UI ---------- */
 function appendBubble(who, text, time){
   const el = document.createElement('div');
@@ -452,11 +420,26 @@ function loadVoicesWhenReady(){
 function populateVoiceSelect(){
   voiceSelect.innerHTML = '';
   const preferredOrder = [
-    { label:'Female 1 (natural)', pick: v => /female|zira|sara|emma|amy|alloy/i.test(v.name) },
-    { label:'Female 2 (clear)', pick: v => /uk female|english female|en-uk/i.test(v.name) },
-    { label:'Male 1 (rich)', pick: v => /male|david|john|matthew/i.test(v.name) },
-    { label:'Male 2 (deep)', pick: v => /microsoft david|en-us male|google uk english male/i.test(v.name) }
-  ];
+  // Female voices
+  { 
+    label: 'Female (Default)', 
+    pick: v => /(zira|amy|emma|joanna|female)/i.test(v.name) 
+  },
+  { 
+    label: 'Female (Alt)', 
+    pick: v => /(salli|joanna|ivy|en-GB female|female)/i.test(v.name) 
+  },
+
+  // Male voices
+  { 
+    label: 'Male (Default)', 
+    pick: v => /(david|matthew|justin|male)/i.test(v.name) 
+  },
+  { 
+    label: 'Male (Alt)', 
+    pick: v => /(brian|justin|eric|en-GB male|male)/i.test(v.name) 
+  }
+];
 
   const added = new Set();
   preferredOrder.forEach(pref => {
@@ -508,6 +491,85 @@ function speakText(text){
 
 /* ---------- Speech Recognition ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition;
+
+/* ---------- Main Reply Flow ---------- */
+async function processUserMessage(transcript) {
+  appendBubble("user", transcript, new Date().toISOString());
+
+  // 1️⃣ Check custom responses (identity, name, dev info)
+  const handled = await handleCustomResponses(transcript);
+  if (handled) return;
+
+  // 2️⃣ Check base identity (if user asks "who is Celivox" etc.)
+  if (/who\s+is\s+celivox/i.test(transcript) || /tell me about celivox/i.test(transcript)) {
+    appendBubble("ai", BASE_IDENTITY, new Date().toISOString());
+    saveConversation(transcript, BASE_IDENTITY);
+    speakText(BASE_IDENTITY);
+    return;
+  }
+
+  // 3️⃣ Otherwise, call AI API
+  const reply = await getAIReply(transcript);
+  appendBubble("ai", reply.text, new Date().toISOString());
+  saveConversation(transcript, reply.text);
+  speakText(reply.text);
+}
+
+/* ---------- Modify Speech Recognition ---------- */
+/* ---------- Main Reply Flow ---------- */
+async function processUserMessage(transcript) {
+  appendBubble("user", transcript, new Date().toISOString());
+
+  // 1️⃣ Check custom responses (identity, name, dev info)
+  const handled = await handleCustomResponses(transcript);
+  if (handled) return;
+
+  // 2️⃣ Check base identity (if user asks "who is Celivox" etc.)
+  if (/who\s+is\s+celivox/i.test(transcript) || /tell me about celivox/i.test(transcript)) {
+    appendBubble("ai", BASE_IDENTITY, new Date().toISOString());
+    saveConversation(transcript, BASE_IDENTITY);
+    speakText(BASE_IDENTITY);
+    return;
+  }
+
+  // 3️⃣ Otherwise, call AI API
+  const reply = await getAIReply(transcript);
+  appendBubble("ai", reply.text, new Date().toISOString());
+  saveConversation(transcript, reply.text);
+  speakText(reply.text);
+}
+
+/* ---------- Modify Speech Recognition ---------- */
+if (SR) {
+  recognition = new SR();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = "en-US";
+
+  recognition.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript;
+    await processUserMessage(transcript);
+  };
+
+  recognition.onerror = (e) => console.error("Speech recognition error:", e.error);
+  recognition.onend = () => {
+    talkBtn.disabled = false;
+    talkBtn.querySelector("#talkLabel").textContent = "You Can Talk";
+  };
+}
+
+async function startTalking() {
+  if (!recognition) {
+    alert("Speech recognition not supported. Use Chrome/Edge.");
+    return;
+  }
+  talkBtn.disabled = true;
+  talkBtn.querySelector("#talkLabel").textContent = "Listening...";
+  recognition.start();
+}
+
+talkBtn.addEventListener("click", startTalking);
 /* ---------- Custom responses ---------- */
 const birthDate = new Date("2008-03-18");
 function getAge() {
@@ -557,7 +619,7 @@ async function handleCustomResponses(transcript){
 
   if(isCreatorQuestion(transcript)){
     const resp = `I was developed by a Nigerian named ${devProfile.fullname}, commonly known as ${devProfile.display}. I was created on ${devProfile.created}. My development involved ${devProfile.tools}. My purpose is ${devProfile.purpose}. My developer originates from ${devProfile.origin}. ${devProfile.bio}`;
-    appendBubble('ai', resp, new Date().toISOString());
+    appendBubble('ai', resp, new Date().toISOString()); // ✅ fixed: using resp not responseText
     saveConversation(transcript, resp);
     speakText(resp);
     return true;
@@ -575,37 +637,33 @@ async function handleCustomResponses(transcript){
 }
 
 /* ---------- API calls ---------- */
-async function getAIReply(text) {
-  // Include last 10 messages for context
-  const history = JSON.parse(localStorage.getItem('celivox_memory') || '[]');
-  const memoryContext = history.slice(-10).map(item => ({
-    role: item.a ? 'ai' : 'user',
-    content: item.a || item.q
-  }));
-
-  // Add the new user message
-  memoryContext.push({ role: 'user', content: text });
-
-  // Custom local responses first
-  const lower = text.toLowerCase();
-  if (lower.includes("generate image") || lower.includes("draw")) {
-    return { type: "text", text: "🖼️ Image generation will be available in Celivox Premium soon!" };
-  }
-  if (lower.includes("turn 18") || lower.includes("when will your developer turn 18")) {
-    return { type: "text", text: `Emmanuel Nwaije Ikemefuna will turn 18 on ${get18thBirthday()}.` };
-  }
-
+async function getAIReply(prompt) {
   try {
-    const provider = "gemini";
-    const response = await fetch("/.netlify/functions/api", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, provider, memory: memoryContext })
+    const response = await fetch('/.netlify/functions/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
     });
+
+    if (!response.ok) throw new Error('AI API Request Failed');
     const data = await response.json();
-    return { type: "text", text: data.reply || "❌ I couldn’t get a response now." };
+
+    // ✅ Check Gemini first, then OpenRouter fallback
+    // ✅ Check Gemini first, then OpenRouter fallback
+let reply = "";
+if (data.gemini && data.gemini.candidates && data.gemini.candidates[0]?.content?.parts) {
+  reply = data.gemini.candidates[0].content.parts[0].text;
+} else if (data.openRouter?.choices?.[0]?.message?.content) {
+  reply = data.openRouter.choices[0].message.content;
+} else {
+  reply = "Sorry, I couldn’t respond at the moment.";
+}
+
+return { text: reply };
+
   } catch (err) {
-    return { type: "text", text: "❌ Backend error: " + err.message };
+    console.error("AI request failed:", err);
+    return { text: "Error: " + err.message };
   }
 }
 /* ---------- API call with memory ---------- */
@@ -672,4 +730,4 @@ talkBtn.addEventListener('click', startTalking);
 speechSynthesis.onvoiceschanged = () => { loadVoicesWhenReady(); };
 </script>
 </body>
-</html>
+  </html>
