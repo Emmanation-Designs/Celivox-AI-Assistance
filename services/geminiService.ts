@@ -1,35 +1,18 @@
-import { GoogleGenerativeAI, Modality } from "@google/generative-ai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
-// Safely get the API key from Vercel Environment Variables
-// Works with any of these names (covers all possibilities)
-const getApiKey = (): string => {
-  return (
-    // Standard Google names (recommended)
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    // Your old name
-    process.env.API_KEY ||
-    // Vite-style
-    process.env.VITE_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
-    ""
-  );
-};
+// Safely get API key from Vercel Environment Variables
+const apiKey =
+  process.env.GEMINI_API_KEY ||
+  process.env.API_KEY ||
+  process.env.VITE_API_KEY ||
+  "";
 
-const apiKey = getApiKey();
-
-if (!apiKey) {
-  console.error(
-    "%cGEMINI API KEY MISSING!",
-    "color: red; font-size: 20px; font-weight: bold;"
-  );
-  console.error(
-    "Go to Vercel → Settings → Environment Variables and add GEMINI_API_KEY with your real key."
-  );
+if (!apiKey && import.meta.env.PROD) {
+  console.error("%cGEMINI API KEY IS MISSING!", "color:red;font-size:20px");
 }
 
-// Initialise Gemini with the safe key
-const genAI = new GoogleGenerativeAI(apiKey);
+// Initialise Gemini
+const ai = new GoogleGenAI({ apiKey });
 
 // TEXT + IMAGE CHAT
 export const generateTextResponse = async (
@@ -40,84 +23,64 @@ export const generateTextResponse = async (
   systemInstruction?: string
 ) => {
   try {
-    const model = genAI.getGenerativeModel({
+    const cleanHistory = history
+      .map(h => ({
+        role: h.role,
+        parts: h.parts.filter(p => p.text && p.text.trim())
+      }))
+      .filter(h => h.parts.length > 0);
+
+    const chat = ai.chats.create({
       model: modelName,
-      systemInstruction,
+      history: cleanHistory,
+      config: { systemInstruction, maxOutputTokens: 800 }
     });
 
-    const chat = model.startChat({
-      history: history.flatMap((h) => ({
-        role: h.role === "user" ? "user" : "model",
-        parts: h.parts,
-      })),
-      generationConfig: {
-        maxOutputTokens: 800,
-        temperature: 0.9,
-      },
-    });
+    const payload = imageParts ? [...imageParts, { text: prompt }] : [{ text: prompt }];
 
-    const result = await chat.sendMessage(
-      imageParts ? [...imageParts, { text: prompt }] : prompt
-    );
-
-    return result.response.text() || "No response from Gemini.";
+    const result = await chat.sendMessage({ message: payload });
+    return result.text || "No response.";
   } catch (error: any) {
-    console.error("Gemini Text Error:", error);
-    return Error: ${error.message || "Something went wrong"};
+    console.error("Gemini Error:", error);
+    return Sorry, something went wrong: ${error.message};
   }
 };
 
-// IMAGE GENERATION (Imagen)
+// IMAGE GENERATION
 export const generateImage = async (prompt: string) => {
   try {
-    const model = genAI.getGenerativeModel({ model: "imagen-3.0-generate-001" });
-
-    const result = await model.generateContent([
+    const response = await ai.models.generateImages({
+      model: "imagen-4.0-generate-001",
       prompt,
-      {
-        inlineData: {
-          mimeType: "image/png",
-          data: "", // dummy – required for some versions
-        },
-      },
-    ]);
+      config: {
+        numberOfImages: 1,
+        outputMimeType: "image/jpeg",
+        aspectRatio: "1:1"
+      }
+    });
 
-    const base64 = result.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-    if (!base64) throw new Error("No image data returned");
-
-    return data:image/png;base64,${base64};
+    const base64 = response.generatedImages[0].image.imageBytes;
+    return data:image/jpeg;base64,${base64};
   } catch (error: any) {
-    console.error("Image Generation Error:", error);
+    console.error("Image Gen Error:", error);
     return null;
   }
 };
 
-// TEXT-TO-SPEECH (optional – keep if you use voice)
-export const generateSpeech = async (text: string, voiceName: string = "alloy") => {
+// TEXT-TO-SPEECH (optional)
+export const generateSpeech = async (text: string, voiceName = "Fenrir") => {
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash-preview-tts",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
+      }
     });
 
-    const result = await model.generateContent([
-      [
-        {
-          text: text,
-        },
-      ],
-      {
-        generationConfig: {
-          responseMimeType: "audio/wav",
-        },
-      }
-    );
-
-    const audioBase64 = result.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-    if (!audioBase64) throw new Error("No audio generated");
-
-    return data:audio/wav;base64,${audioBase64};
+    const audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return audio ? data:audio/wav;base64,${audio} : null;
   } catch (error: any) {
     console.error("TTS Error:", error);
     return null;
