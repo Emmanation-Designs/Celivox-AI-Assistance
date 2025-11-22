@@ -1,7 +1,22 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Assume process.env.API_KEY is available as per instructions
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Get API key from multiple possible env vars (SDK standard + our custom)
+const getApiKey = () => {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.API_KEY ||
+    process.env.VITE_API_KEY ||
+    "" // Fallback empty
+  );
+};
+
+const apiKey = getApiKey();
+if (!apiKey) {
+  console.error("No API key found! Add GEMINI_API_KEY to Vercel Environment Variables.");
+}
+
+const ai = new GoogleGenAI({ apiKey });
 
 export const generateTextResponse = async (
   history: { role: string; parts: { text: string }[] }[],
@@ -41,7 +56,7 @@ export const generateTextResponse = async (
 
     return result.text || "I couldn't generate a response.";
   } catch (error) {
-    console.error("Gemini Text Ewrror:", error);
+    console.error("Gemini Text Error:", error);
     throw error;
   }
 };
@@ -60,7 +75,7 @@ export const generateImage = async (prompt: string) => {
     });
     
     const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-    return `data:image/jpeg;base64,${base64ImageBytes}`;
+    return data:image/jpeg;base64,${base64ImageBytes};
   } catch (error) {
     console.error("Gemini Image Gen Error:", error);
     throw error;
