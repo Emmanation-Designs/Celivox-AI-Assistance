@@ -1,88 +1,93 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Safely get API key from Vercel Environment Variables
-const apiKey =
-  process.env.GEMINI_API_KEY ||
-  process.env.API_KEY ||
-  process.env.VITE_API_KEY ||
-  "";
+// Assume process.env.API_KEY is available as per instructions
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-if (!apiKey && import.meta.env.PROD) {
-  console.error("%cGEMINI API KEY IS MISSING!", "color:red;font-size:20px");
-}
-
-// Initialise Gemini
-const ai = new GoogleGenAI({ apiKey });
-
-// TEXT + IMAGE CHAT
 export const generateTextResponse = async (
   history: { role: string; parts: { text: string }[] }[],
   prompt: string,
   imageParts?: { inlineData: { data: string; mimeType: string } }[],
-  modelName: string = "gemini-1.5-flash",
+  modelName: string = 'gemini-2.5-flash',
   systemInstruction?: string
 ) => {
   try {
-    const cleanHistory = history
-      .map(h => ({
-        role: h.role,
-        parts: h.parts.filter(p => p.text && p.text.trim())
-      }))
-      .filter(h => h.parts.length > 0);
+    // Sanitize history: Gemini rejects empty text parts
+    const cleanHistory = history.map(h => ({
+      role: h.role,
+      parts: h.parts.filter(p => p.text && p.text.trim().length > 0)
+    })).filter(h => h.parts.length > 0);
 
+    // Ensure history starts with user if it exists (Gemini requirement)
+    // (The app logic usually ensures this, but safety check is good)
+    
     const chat = ai.chats.create({
       model: modelName,
       history: cleanHistory,
-      config: { systemInstruction, maxOutputTokens: 800 }
-    });
-
-    const payload = imageParts ? [...imageParts, { text: prompt }] : [{ text: prompt }];
-
-    const result = await chat.sendMessage({ message: payload });
-    return result.text || "No response.";
-  } catch (error: any) {
-    console.error("Gemini Error:", error);
-    return Sorry, something went wrong: ${error.message};
-  }
-};
-
-// IMAGE GENERATION
-export const generateImage = async (prompt: string) => {
-  try {
-    const response = await ai.models.generateImages({
-      model: "imagen-4.0-generate-001",
-      prompt,
       config: {
-        numberOfImages: 1,
-        outputMimeType: "image/jpeg",
-        aspectRatio: "1:1"
+        systemInstruction: systemInstruction,
+        maxOutputTokens: 500 // Prevent extremely long responses to improve speed
       }
     });
 
-    const base64 = response.generatedImages[0].image.imageBytes;
-    return data:image/jpeg;base64,${base64};
-  } catch (error: any) {
-    console.error("Image Gen Error:", error);
-    return null;
+    // When sending images, pass an array of parts: [ImagePart, TextPart]
+    // If strictly text, pass text string or part in array
+    const messagePayload = imageParts 
+      ? [...imageParts, { text: prompt }] 
+      : [{ text: prompt }]; // Always wrap in array for strict Part[] compatibility
+
+    const result = await chat.sendMessage({
+      message: messagePayload
+    });
+
+    return result.text || "I couldn't generate a response.";
+  } catch (error) {
+    console.error("Gemini Text Ewrror:", error);
+    throw error;
   }
 };
 
-// TEXT-TO-SPEECH (optional)
-export const generateSpeech = async (text: string, voiceName = "Fenrir") => {
+export const generateImage = async (prompt: string) => {
+  try {
+    // Using imagen-4.0-generate-001 for high quality images
+    const response = await ai.models.generateImages({
+      model: 'imagen-4.0-generate-001',
+      prompt: prompt,
+      config: {
+        numberOfImages: 1,
+        outputMimeType: 'image/jpeg',
+        aspectRatio: '1:1',
+      },
+    });
+    
+    const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+    return data:image/jpeg;base64,${base64ImageBytes};
+  } catch (error) {
+    console.error("Gemini Image Gen Error:", error);
+    throw error;
+  }
+};
+
+export const generateSpeech = async (text: string, voiceName: string = 'Fenrir') => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash-preview-tts",
+      model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text }] }],
       config: {
         responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } }
-      }
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voiceName }, 
+          },
+        },
+      },
     });
 
-    const audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    return audio ? data:audio/wav;base64,${audio} : null;
-  } catch (error: any) {
-    console.error("TTS Error:", error);
-    return null;
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Audio) throw new Error("No audio generated");
+    
+    return base64Audio;
+  } catch (error) {
+    console.error("Gemini TTS Error:", error);
+    throw error;
   }
 };
